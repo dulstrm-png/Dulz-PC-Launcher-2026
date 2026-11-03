@@ -1,58 +1,48 @@
-name: Build Dulz PC Launcher
+name: Build xD APK from ZIP
 
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [ main, master ]
+    paths:
+      - 'xD.zip'
+  workflow_dispatch:
 
 jobs:
   build:
-    name: Build APK
     runs-on: ubuntu-latest
-
+    timeout-minutes: 30
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
+      - name: Extract xD.zip
+        run: |
+          if [ ! -f xD.zip ]; then echo "xD.zip nggak ada di root repo"; exit 1; fi
+          unzip -q xD.zip -d .
+          echo "--- struktur ---"
+          find xD -type f | sort | head -50
+
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
+      - uses: android-actions/setup-android@v3
 
-      - name: Create Gradle Wrapper
+      - name: Install NDK & CMake
         run: |
-          gradle wrapper --gradle-version 8.9
-          chmod +x gradlew
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "ndk;26.1.10909125" "cmake;3.22.1" "platforms;android-34" "build-tools;34.0.0"
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK
-        run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager \
-            "platform-tools" \
-            "platforms;android-35" \
-            "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v3
 
       - name: Build APK
-        run: ./gradlew assembleDebug --no-daemon
-
-      - name: Find APK
+        working-directory: xD
         run: |
-          echo "APK hasil build:"
-          find app/build/outputs/apk -type f -name "*.apk" -print
+          if [ -f gradlew ]; then ./gradlew assembleDebug --no-daemon --stacktrace
+          else gradle assembleDebug --no-daemon --stacktrace; fi
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: Dulz-PC-Launcher-2026
-          path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
+          name: xD-debug-apk
+          path: xD/app/build/outputs/apk/debug/*.apk
+          retention-days: 30
