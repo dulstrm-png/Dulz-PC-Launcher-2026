@@ -2,7 +2,7 @@ name: Build xD APK
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -11,51 +11,43 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Checkout Repository
+      - name: 1. Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: 2. Setup JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
+      - name: 3. Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install NDK, CMake, Platform, Build-tools
+      - name: 4. Install NDK & CMake
         run: |
           yes | sdkmanager --licenses > /dev/null 2>&1 || true
           sdkmanager "ndk;26.1.10909125" "cmake;3.22.1" "platforms;android-34" "build-tools;34.0.0"
 
-      - name: Generate Project with gen_xd.py
+      - name: 5. Generate Project (gen_xd.py)
         run: |
           python3 gen_xd.py
-          echo "--- cek struktur hasil generate ---"
-          find xD -type f | sort | head -50
+          ls -R xD | head -n 50
 
-      - name: Setup Gradle
+      - name: 6. Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Build Debug APK
+      - name: 7. Build Debug APK
         working-directory: xD
         run: |
-          # fallback: kalau gradlew nggak ada di zip, pakai gradle global
           if [ -f gradlew ]; then
+            chmod +x gradlew
             ./gradlew assembleDebug --no-daemon --stacktrace
           else
             gradle assembleDebug --no-daemon --stacktrace
           fi
 
-      - name: Verify APK
-        run: |
-          APK=$(find xD/app/build/outputs/apk/debug -name "*.apk" | head -n1)
-          if [ -z "$APK" ]; then echo "APK tidak ditemukan"; exit 1; fi
-          ls -lh "$APK"
-
-      - name: Upload APK Artifact
+      - name: 8. Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: xD-debug-apk
           path: xD/app/build/outputs/apk/debug/*.apk
-          retention-days: 30
