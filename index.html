@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>xD — ZIP Builder</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  body{background:#0b0b0b;color:#eee;font-family:system-ui,sans-serif;padding:24px;max-width:760px;margin:auto}
+  h1{color:#22c55e}
+  button{background:#22c55e;color:#000;border:0;padding:14px 22px;font-weight:700;border-radius:10px;cursor:pointer;font-size:15px;width:100%}
+  button:disabled{opacity:.5}
+  pre{background:#111;padding:12px;border-radius:8px;max-height:320px;overflow:auto;font-size:11px;color:#9ae6b4;white-space:pre-wrap;word-break:break-all}
+  .err{color:#ef4444}
+</style>
+</head>
+<body>
+<h1>xD ZIP Builder</h1>
+<p>Klik tombol → <code>xD.zip</code> ke-download. Lalu push ke repo ini, Actions build APK.</p>
+<button id="go">Bikin &amp; Download xD.zip</button>
+<pre id="log">siap.</pre>
+
+<script>
+const log=document.getElementById("log");
+function say(s,e){log.textContent+=s+"\n";log.className=e?"err":"";}
+window.addEventListener("load",()=>{
+  if(typeof JSZip==="undefined") say("GAGAL: JSZip nggak ke-load (butuh internet).",true);
+  else say("JSZip OK. siap.");
+});
+
+const files={};
+function add(path,content){
+  const lines=content.replace(/^\n+/,"").split("\n");
+  const ne=lines.filter(l=>l.trim().length>0);
+  const ind=ne.length?Math.min(...ne.map(l=>(l.match(/^ */)||[""])[0].length)):0;
+  files[path]=lines.map(l=>l.slice(ind)).join("\n");
+}
+
+// --- isi file proyek xD: TAMBAHIN SEMUA add() DI SINI ---
+// minimal buat tes:
+add("xD/README.md","\n# xD\nproyek.\n");
+add("xD/settings.gradle.kts",`
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        maven("https://jitpack.io")
+    }
+}
+rootProject.name = "xD"
+include(":app")
+`);
+add("xD/build.gradle.kts",`
+plugins {
+    id("com.android.application") version "8.3.2" apply false
+    id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+}
+`);
+// ... tambahin file lain (app/, cpp/, java/, res/) di sini ...
+
+document.getElementById("go").onclick=async()=>{
+  const btn=document.getElementById("go"); btn.disabled=true;
+  try{
+    if(typeof JSZip==="undefined") throw new Error("JSZip belum ke-load");
+    if(Object.keys(files).length===0) throw new Error("files kosong");
+    const zip=new JSZip();
+    for(const[p,c]of Object.entries(files)) zip.file(p,c);
+    const blob=await zip.generateAsync({type:"blob",compression:"DEFLATE"});
+    if(blob.size<100) throw new Error("ZIP kosong");
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url; a.download="xD.zip"; a.rel="noopener";
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{a.remove();URL.revokeObjectURL(url);},1000);
+    say("OK — xD.zip ke-download ("+Math.round(blob.size/1024)+" KB)");
+  }catch(e){say("ERROR: "+e.message,true);console.error(e);}
+  finally{btn.disabled=false;}
+};
+</script>
+</body>
+</html>
